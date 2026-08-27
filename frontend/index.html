@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SemantiKB</title>
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <header class="app-header">
+    <h1> SemantiKB</h1>
+    <span class="subtitle">Local RAG with semantic chunking</span>
+  </header>
+  <div id="app-root"></div>
+
+  <script>
+  
+    window.PKA_API_BASE_URL = "http://localhost:8000";
+  </script>
+  <script type="module">
+    import { App } from "./pages/App.js";
+    new App(document.getElementById("app-root"));
+  </script>
+</body>
+</html>
