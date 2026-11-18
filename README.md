@@ -1,226 +1,149 @@
-# SemantiKB — Smart Semantic Chunking
+<div align="center">
 
-A local, privacy-friendly RAG (Retrieval-Augmented Generation) system for uploading documents and asking questions about them. Its core innovation is **context-aware semantic chunking**: instead of splitting documents into fixed-size blocks, it uses sentence embeddings to detect where the *topic* actually changes, and cuts there.
+# 🧩 SemantiKB
 
-Everything runs locally — Hugging Face Sentence Transformers for embeddings, ChromaDB for vector storage, and Ollama for the LLM. No paid APIs are required.
+**A private, local-first RAG system with semantic chunking and a built-in evaluation harness.**
 
-### Pipeline
+[![CI](https://github.com/YOUR_USERNAME/SemantiKB/actions/workflows/ci.yml/badge.svg)](https://github.com/YOUR_USERNAME/SemantiKB/actions)
+![Python](https://img.shields.io/badge/python-3.10%2B-blue)
+![FastAPI](https://img.shields.io/badge/FastAPI-0.115-009688)
+![License](https://img.shields.io/badge/license-MIT-green)
 
-```mermaid
-flowchart LR
-    A[📄 Upload] --> B[Parse]
-    B --> C[Sentence<br/>Segmentation]
-    C --> D[Sentence<br/>Embeddings]
-    D --> E[Semantic Boundary<br/>Detection]
-    E --> F[Context-Aware<br/>Chunking]
-    F --> G[Hierarchical<br/>Summarization]
-    G --> H[(Vector Store)]
-    H --> I[Hybrid Retrieval<br/><i>+ optional reranking</i>]
-    I --> J[Ollama LLM]
-    J --> K[✅ Grounded Answer<br/>+ Citations]
+[**Live interactive demo**](https://YOUR_USERNAME.github.io/SemantiKB/) · [Architecture](#architecture) · [Quick start](#quick-start) · [Evaluation](#evaluation)
 
-    classDef ingest fill:#e0f2fe,stroke:#0369a1,stroke-width:1px,color:#0c4a6e
-    classDef chunk fill:#fef3c7,stroke:#b45309,stroke-width:1px,color:#78350f
-    classDef store fill:#ede9fe,stroke:#6d28d9,stroke-width:1px,color:#4c1d95
-    classDef answer fill:#dcfce7,stroke:#15803d,stroke-width:1px,color:#14532d
+</div>
 
-    class A,B,C,D ingest
-    class E,F,G chunk
-    class H store
-    class I,J,K answer
-```
+SemantiKB lets you upload documents and ask questions about them, with grounded answers and citations. Everything runs on your machine: Sentence Transformers for embeddings, ChromaDB for vectors, Ollama for the LLM. **No paid APIs, no data leaves your device.**
 
-*Documents move through ingestion (blue) into semantic chunking (amber), land in the vector store (purple), and are retrieved and answered (green) — all on-device.*
+Its core idea is **semantic chunking**: instead of cutting a document every *N* tokens, it embeds each sentence and splits where the *topic* actually changes. The repo ships an evaluation harness that benchmarks fixed, recursive and semantic chunking on identical queries, so the benefit can be measured on your own documents rather than assumed.
 
----
+## Features
 
-## Table of Contents
-
-- [Why Semantic Chunking?](#why-semantic-chunking)
-- [Architecture](#architecture)
-- [Setup](#setup)
-- [Using the Evaluation Module](#using-the-evaluation-module)
-- [Configuration Reference](#configuration-reference)
-- [Privacy & Cost](#privacy--cost)
-- [Known Limitations](#known-limitations)
-
----
-
-## Why Semantic Chunking?
-
-### The Problem with Fixed-Size Chunking
-
-Fixed-size (or fixed-token) chunking splits a document every *N* tokens, regardless of what's being said at that point. If a paragraph explaining a policy's exception clause happens to straddle the 250-token mark, the explanation and its exception get separated into two different chunks. At retrieval time, a query about the exception may only retrieve the first half — the model then either answers incompletely or, worse, confidently states the general rule without the exception, because the exception simply isn't in its context window. The chunk boundary is a property of the *counter*, not of the *content*.
-
-Recursive character/separator chunking (e.g. LangChain's `RecursiveCharacterTextSplitter`) improves on this by preferring to split on paragraph or sentence boundaries when possible — but it still has no notion of *meaning*. Two adjacent paragraphs about completely different subjects will happily be merged into one chunk if they fit the size budget, while a single coherent argument that runs slightly over budget gets cut in half anyway.
-
-### How Semantic Similarity Identifies Topic Transitions
-
-Sentence embeddings place semantically related sentences close together in vector space. If every sentence in a document is embedded with a Sentence Transformer and the cosine similarity is computed between each pair of *consecutive* sentences, the result is a similarity signal that stays high while the discourse continues on the same topic and *drops* exactly at the point where the topic shifts — a new section starts, an example ends and a new point begins, a policy's general rule transitions into an exception, etc.
-
-The system's `SemanticChunker` (`backend/chunking/semantic_chunker.py`) implements this directly:
-
-1. Embed every sentence in the document (`all-MiniLM-L6-v2` by default).
-2. Compute consecutive-sentence cosine similarity across the whole document.
-3. Wherever similarity falls below `CHUNK_SIMILARITY_THRESHOLD`, mark a *candidate* chunk boundary.
-4. Only honor a candidate boundary once the chunk-so-far is at least `CHUNK_MIN_SIZE_TOKENS` — this prevents the chunker from producing lots of tiny, fragmentary chunks on naturally choppy prose (dialogue, lists, etc.).
-5. Force a split regardless of similarity if a chunk would otherwise exceed `CHUNK_MAX_SIZE_TOKENS` — semantic chunking still respects a hard ceiling so chunks stay embeddable and fit comfortably in the LLM's context window.
-6. If `PREFER_PARAGRAPH_BOUNDARIES` is enabled, a nearby paragraph/heading boundary already present in the source is preferred over a purely embedding-derived cut point, since document authors' own structure is a strong (free) signal.
-7. A configurable number of trailing sentences (`CHUNK_OVERLAP_TOKENS`) is carried into the next chunk so that retrieval doesn't lose context right at a boundary.
-
-### How the Threshold Affects Chunk Boundaries
-
-`CHUNK_SIMILARITY_THRESHOLD` is a value between 0 and 1 (default `0.65`):
-
-| Threshold | Effect | Best for |
-|---|---|---|
-| **Lower** (e.g. `0.4`) | Splits only on very strong topic shifts → fewer, larger chunks | Narrative or loosely-structured text where broad context per chunk is useful |
-| **Higher** (e.g. `0.8`) | Splits on subtler shifts in wording and emphasis → more, smaller, tightly-focused chunks | Reference documents (policies, specs) where users ask narrow, specific questions |
-
-Because the threshold, minimum size, and maximum size are all environment variables (see `.env.example`), the chunker can be retuned per corpus without touching code, and the evaluation module lets you empirically find the threshold that maximizes retrieval quality for your documents.
-
-### Why Semantic Chunking May Improve Retrieval
-
-Retrieval quality depends on each stored chunk being a coherent, self-contained unit of meaning:
-
-- If a chunk mixes two unrelated ideas, its embedding is a blurry average of both, and it will rank poorly for queries about *either* idea.
-- If a chunk cuts a single idea in half, neither half's embedding fully represents the idea, and a query about it may miss both halves or retrieve an incomplete one.
-
-Semantic chunking directly targets this problem by aligning chunk boundaries with actual topic boundaries, so:
-
-- Each chunk's embedding is a more faithful representation of a single, complete idea → higher **precision** (retrieved chunks are actually about the query) and higher **recall** (the whole relevant passage is captured in one chunk, not split across two).
-- The LLM sees complete arguments rather than fragments, reducing the odds of a grounded-but-incomplete or subtly wrong answer.
-
-This system doesn't just assert that semantic chunking is better — it ships an evaluation harness (`backend/evaluation/`) that runs fixed, recursive, and semantic chunking through *the same* retrieval pipeline against *the same* labeled queries, and reports Precision@K, Recall@K, MRR, NDCG, answer relevance, faithfulness, chunk count, storage footprint, and retrieval latency side by side — so the claim can be checked quantitatively on your own documents.
-
----
+| Area | What it does |
+|---|---|
+| **Semantic chunking** | Boundary detection from consecutive-sentence cosine similarity, with min/max size guards, paragraph-boundary preference and sentence overlap |
+| **Hybrid retrieval** | Vector search + BM25 fused with a tunable weight; optional cross-encoder reranking |
+| **Grounded answers** | Local LLM via Ollama, answers cite source chunks and pages |
+| **Hierarchical summaries** | Chunk → section → document summaries |
+| **Document versioning** | Re-upload to create versions; temporal lookup and version diffing |
+| **Evaluation harness** | Precision@K, Recall@K, MRR, NDCG, answer relevance, faithfulness, chunk count, storage and latency across strategies |
+| **Typed, tested API** | FastAPI + Pydantic models, pytest suite, CI, Docker |
 
 ## Architecture
 
+```mermaid
+flowchart LR
+    A[Upload] --> B[Parse]
+    B --> C[Sentence segmentation]
+    C --> D[Sentence embeddings]
+    D --> E[Semantic boundary detection]
+    E --> F[Context-aware chunking]
+    F --> G[Hierarchical summarization]
+    G --> H[(ChromaDB + SQLite)]
+    H --> I[Hybrid retrieval + optional rerank]
+    I --> J[Ollama LLM]
+    J --> K[Grounded answer + citations]
+```
+
 ```
 backend/
-  ingestion/       PDF/TXT parsing, sentence segmentation, ingestion pipeline
-  chunking/         Fixed / recursive / semantic chunkers + factory
-  embeddings/       Sentence Transformer wrapper
-  retrieval/        BM25, hybrid vector+keyword retrieval, temporal resolution
-  reranking/        Optional cross-encoder reranker
-  summarization/    Hierarchical chunk → section → document summaries
-  versioning/       Document version registration, temporal lookup, diffing
-  llm/              Ollama client + grounded RAG prompt/answer construction
-  evaluation/       IR metrics + strategy comparison harness
-  database/         SQLite schema/repository, ChromaDB vector store wrapper
-  tests/            Unit tests
-  config.py         All tunables, loaded from environment variables
-  models.py         Pydantic schema shared across the system
-  main.py           FastAPI app
-
-frontend/
-  components/       DocumentSidebar, ChatPanel, VersionHistory,
-                     DocumentInsightsPanel, EvaluationPanel
-  pages/App.js       Top-level page wiring the components together
-  services/api.js    Fetch wrapper around the backend REST API
-  index.html / styles.css
+  ingestion/      PDF/TXT parsing, sentence segmentation, pipeline
+  chunking/       Fixed / recursive / semantic chunkers + factory
+  embeddings/     Sentence Transformer wrapper
+  retrieval/      BM25 and hybrid vector+keyword retrieval
+  reranking/      Optional cross-encoder reranker
+  summarization/  Hierarchical summaries
+  versioning/     Version registration, temporal lookup, diffing
+  llm/            Ollama client and grounded RAG prompting
+  evaluation/     IR metrics and strategy-comparison harness
+  database/       SQLite repository, ChromaDB wrapper
+  tests/          Unit tests
+frontend/         Dependency-free vanilla JS UI (ES modules, no build step)
 ```
 
-Data flows **document → version → section → chunk → sentences** at every layer (SQLite schema, Pydantic models, and the summarizer's hierarchy all mirror this).
+## How semantic chunking works
 
----
+1. Embed every sentence (`all-MiniLM-L6-v2` by default).
+2. Compute cosine similarity between each pair of consecutive sentences. It stays high within a topic and drops at a topic shift.
+3. Mark a candidate boundary wherever similarity falls below `CHUNK_SIMILARITY_THRESHOLD`.
+4. Honour a boundary only if the chunk has reached `CHUNK_MIN_SIZE_TOKENS`; force a split at `CHUNK_MAX_SIZE_TOKENS`.
+5. Prefer nearby paragraph/heading boundaries when present, and carry `CHUNK_OVERLAP_TOKENS` into the next chunk.
 
-## Setup
+| Threshold | Effect | Suited to |
+|---|---|---|
+| Lower (≈ 0.4) | Fewer, larger chunks | Narrative or loosely structured text |
+| Higher (≈ 0.8) | More, smaller, tightly focused chunks | Policies, specs, reference docs |
 
-### Prerequisites
+The [live demo](https://YOUR_USERNAME.github.io/SemantiKB/) visualises this in the browser (it uses TF-IDF similarity so it needs no backend; the full app uses neural embeddings).
 
-- Python 3.10+
-- [Ollama](https://ollama.com) installed and running locally, with a model pulled, e.g.:
-  ```bash
-  ollama pull llama2.1
-  ollama serve
-  ```
-- No GPU required — CPU embedding works fine for `all-MiniLM-L6-v2`. Set `EMBEDDING_DEVICE=cuda` in `.env` if you have one.
+## Deploying the demo
 
-### Backend
+The interactive demo in [`demo/`](demo) is a single static file. It deploys automatically to GitHub Pages on every push to `main` (enable **Settings → Pages → Source: GitHub Actions**), or to Vercel/Netlify by importing the repo (`vercel.json` is included).
+
+## Quick start
+
+**Prerequisites:** Python 3.10+, [Ollama](https://ollama.com) with a model pulled (`ollama pull llama3.1`).
 
 ```bash
-cd pka
-python -m venv .venv && source .venv/bin/activate   # or your preferred env tool
+git clone https://github.com/YOUR_USERNAME/SemantiKB.git && cd SemantiKB
+python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
-
-cp .env.example .env                                 # adjust as needed
-
-# NLTK's sentence tokenizer data (optional — falls back to a regex
-# splitter automatically if this is skipped or offline):
-python -c "import nltk; nltk.download('punkt_tab')"
-
-python -m uvicorn backend.main:app --reload --port 8000
+cp .env.example .env
+python -c "import nltk; nltk.download('punkt_tab')"   # optional; regex fallback if skipped
+uvicorn backend.main:app --reload --port 8000
 ```
 
-The first request that touches the embedding model will download `sentence-transformers/all-MiniLM-L6-v2` from Hugging Face (~90MB) and cache it locally; after that, everything runs offline.
-
-Run the test suite:
+In a second terminal, serve the UI and open <http://localhost:5173>:
 
 ```bash
-pytest backend/tests -v
+cd frontend && python -m http.server 5173
 ```
 
-### Frontend
+The first run downloads the embedding model (~90 MB); after that everything works offline. Interactive API docs are at <http://localhost:8000/docs>.
 
-The frontend is a dependency-free vanilla JS app (ES modules, no build step). Serve it with any static file server, e.g.:
+**With Docker:** `docker compose up --build`, then `docker compose exec ollama ollama pull llama3.1`.
 
-```bash
-cd frontend
-python -m http.server 5173
-```
+**Tests:** `pytest backend/tests -v`
 
-Then open `http://localhost:5173`. If your backend isn't on `localhost:8000`, edit the `window.PKA_API_BASE_URL` value in `frontend/index.html`.
+## Evaluation
 
----
-
-## Using the Evaluation Module
-
-`POST /api/evaluate` accepts a list of labeled queries:
+`POST /api/evaluate` takes labelled queries and runs all three chunking strategies through identical retrieval:
 
 ```json
-[
-  {
-    "query": "What is the refund policy?",
-    "document_id": "doc_abc123",
-    "relevant_pages": [2, 3],
-    "reference_answer": "Refunds are available within 30 days of purchase."
-  }
-]
+[{
+  "query": "What is the refund policy?",
+  "document_id": "doc_abc123",
+  "relevant_pages": [2, 3],
+  "reference_answer": "Refunds are available within 30 days of purchase."
+}]
 ```
 
-It runs each of the three chunking strategies through identical retrieval (and, when a `reference_answer` is supplied, LLM-judged answer relevance/faithfulness), and returns a metrics comparison. Results are also stored in SQLite (`eval_runs` table) and viewable via `GET /api/evaluate/history`. The **Evaluation** tab in the UI wraps this endpoint with a simple form.
+It returns Precision@K, Recall@K, MRR and NDCG (plus LLM-judged relevance and faithfulness when a reference answer is given). Runs are stored in SQLite (`GET /api/evaluate/history`) and available in the UI's **Evaluation** tab.
 
----
+## Configuration
 
-## Configuration Reference
+All settings are environment variables; see [`.env.example`](.env.example) for the full list: chunking threshold and sizes, retrieval mode (`vector` / `bm25` / `hybrid`), hybrid weighting, reranker toggle, Ollama model and host, summarization toggle.
 
-All tunables live in `.env` (see `.env.example` for the full list and defaults), including:
-
-- Semantic chunking threshold, min/max size, and overlap
-- Baseline chunker sizes (fixed / recursive)
-- Retrieval mode (`vector` / `bm25` / `hybrid`) and hybrid weighting
-- Optional reranker toggle
-- Ollama model/host
-- Hierarchical summarization toggle
-
----
-
-## Privacy & Cost
+## Privacy and cost
 
 | Component | Runs | Notes |
 |---|---|---|
-| Embeddings | Local (Sentence Transformers) | No API key required |
-| Vector DB | Local (ChromaDB) | File-based persistence under `./data/chroma` |
-| LLM | Local (Ollama) | No data leaves your machine |
+| Embeddings | Local | Sentence Transformers, no API key |
+| Vector DB | Local | ChromaDB, file-based under `./data/chroma` |
+| LLM | Local | Ollama, nothing leaves your machine |
 
-No mandatory paid APIs are used anywhere in the pipeline.
+## Known limitations
 
----
+- PDF heading detection is heuristic (regex), not full layout analysis; multi-column or image-heavy PDFs work less well.
+- Recursive-chunker page/section metadata is best-effort text matching.
+- The BM25 index is rebuilt in memory per query; a persistent inverted index would suit large corpora.
 
-## Known Limitations
+## Roadmap
 
-- **PDF section/heading detection** is heuristic (regex-based), not full layout analysis — works well for typically-formatted reports/policies, less well for heavily multi-column or image-heavy PDFs.
-- **Recursive chunker metadata** (page/section attachment) is best-effort text matching rather than an exact index, since it reconstructs from raw text rather than tracking sentence offsets directly (the semantic and fixed chunkers track this precisely).
-- **BM25 index** is rebuilt in-memory per query for simplicity; for very large corpora, a persistent inverted index would be preferable.
+- Persistent BM25 index
+- Layout-aware PDF parsing
+- Authentication and multi-user workspaces
+
+## License
+
+[MIT](LICENSE)

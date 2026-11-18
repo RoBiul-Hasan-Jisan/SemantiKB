@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>SemantiKB — Semantic Chunking Demo</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 100 100%27%3E%3Ctext y=%27.9em%27 font-size=%2790%27%3E🧩%3C/text%3E%3C/svg%3E">
+<style>
+:root{--bg:#f7f8fa;--card:#fff;--text:#14181f;--dim:#5d6675;--line:#e2e6ec;--accent:#2f5fd0;--accent-bg:#e8eefc;
+box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);
+font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;color-scheme:light}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0f1115;--card:#171a21;--text:#e6e8ec;--dim:#9aa1ac;--line:#2a2f3a;--accent:#7aa5ff;--accent-bg:#1b2745;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#0f1115;--card:#171a21;--text:#e6e8ec;--dim:#9aa1ac;--line:#2a2f3a;--accent:#7aa5ff;--accent-bg:#1b2745;color-scheme:dark}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font-size:15px;line-height:1.55}
+.wrap{max-width:1080px;margin:0 auto;padding:28px 18px 48px}
+h1{font-size:26px;margin:0 0 4px;letter-spacing:-.02em}
+.sub{color:var(--dim);margin:0 0 18px;max-width:760px}
+.badges{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:22px}
+.badge{font-size:12px;padding:3px 9px;border-radius:99px;background:var(--accent-bg);color:var(--accent);font-weight:600}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px;margin-bottom:16px}
+h2{font-size:13px;text-transform:uppercase;letter-spacing:.06em;color:var(--dim);margin:0 0 10px}
+textarea,input[type=text]{width:100%;font:inherit;color:var(--text);background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:10px}
+textarea{min-height:150px;resize:vertical;font-size:14px}
+.controls{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:14px;margin-top:12px}
+label{font-size:13px;color:var(--dim);display:block}
+label b{color:var(--text)}
+input[type=range]{width:100%;accent-color:var(--accent)}
+button{font:inherit;font-weight:600;border:0;border-radius:8px;padding:9px 14px;background:var(--accent);color:#fff;cursor:pointer}
+button.ghost{background:var(--accent-bg);color:var(--accent)}
+.chart{overflow-x:auto}
+svg text{fill:var(--dim);font-size:10px}
+.cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(290px,1fr));gap:14px}
+.col h3{font-size:15px;margin:0 0 2px}
+.stat{font-size:12px;color:var(--dim);margin-bottom:8px}
+.chunk{border-radius:8px;padding:8px 10px;margin-bottom:8px;font-size:13px;border-left:4px solid}
+.chunk small{display:block;color:var(--dim);font-size:11px;margin-bottom:2px}
+.hit{outline:2px solid var(--accent)}
+.row{display:flex;gap:8px}
+.note{font-size:12.5px;color:var(--dim);margin-top:10px}
+footer{color:var(--dim);font-size:13px;margin-top:24px}
+a{color:var(--accent)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>🧩 SemantiKB</h1>
+  <p class="sub">A local RAG system whose chunker cuts documents where the <em>topic</em> changes, not where a token counter runs out. Try it below: edit the text, move the sliders, and compare strategies side by side.</p>
+  <div class="badges"><span class="badge">Semantic chunking</span><span class="badge">Hybrid BM25 + vector retrieval</span><span class="badge">Hierarchical summaries</span><span class="badge">Document versioning</span><span class="badge">Evaluation harness</span><span class="badge">FastAPI · ChromaDB · Ollama</span></div>
+
+  <div class="card">
+    <h2>1 · Input document</h2>
+    <textarea id="txt" spellcheck="false"></textarea>
+    <div class="controls">
+      <label>Similarity threshold: <b id="vTh"></b><input id="th" type="range" min="0.02" max="0.5" step="0.01" value="0.14"></label>
+      <label>Min chunk size: <b id="vMin"></b> words<input id="mn" type="range" min="5" max="60" step="1" value="20"></label>
+      <label>Baseline chunk size: <b id="vSz"></b> words<input id="sz" type="range" min="15" max="80" step="1" value="35"></label>
+    </div>
+    <div class="row" style="margin-top:12px"><button class="ghost" id="reset">Reset sample</button></div>
+  </div>
+
+  <div class="card">
+    <h2>2 · Similarity between consecutive sentences</h2>
+    <div class="chart"><svg id="chart" height="150"></svg></div>
+    <p class="note">Each bar is the similarity across a sentence gap. Bars below the dashed threshold line become semantic chunk boundaries (once the minimum size is met). This browser demo scores sentences with TF‑IDF so it can run with no backend; the full app uses Sentence‑Transformer embeddings (all‑MiniLM‑L6‑v2).</p>
+  </div>
+
+  <div class="card">
+    <h2>3 · Chunking strategies compared</h2>
+    <div class="cols" id="cols"></div>
+  </div>
+
+  <div class="card">
+    <h2>4 · Ask a question — best chunk per strategy (BM25)</h2>
+    <div class="row"><input type="text" id="q" value="Can gift cards be refunded?"><button id="go">Retrieve</button></div>
+    <p class="note">Highlighted chunk = top BM25 result. Notice how fixed-size chunking can return a fragment that cuts the answer in half.</p>
+  </div>
+
+  <footer>Built with a FastAPI backend, ChromaDB, Sentence Transformers and Ollama. This page is a lightweight, in‑browser illustration of the chunking and retrieval ideas; the full system runs locally. <span id="gh"></span></footer>
+</div>
+
+<script>
+const GITHUB = ""; // set to the repository URL to show a source link
+const SAMPLE = "Our refund policy allows customers to return any item within 30 days of purchase. Refunds are issued to the original payment method once the returned item is inspected. Items returned after 30 days are not eligible for a refund, but store credit may be offered. Digital goods and gift cards cannot be refunded under this policy.\n\nWe take data privacy seriously and collect only the personal data needed to process orders. Personal data is encrypted in transit and at rest on our servers. Customers may request deletion of their personal data at any time through the privacy portal. We never sell personal data to advertising partners.\n\nShipping times depend on the delivery region and the carrier selected at checkout. Standard shipping usually takes five business days, while express shipping arrives within two days. Each shipping carrier provides a tracking number once the parcel leaves the warehouse. International shipping may incur customs fees paid by the recipient.";
+const STOP = new Set("a an the and or but of to in on at by for with from is are was were be been it its this that these those as can may we our us they their any each at once not no than then so such into under over".split(" "));
+const $ = id => document.getElementById(id);
+const esc = s => s.replace(/[&<>]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]));
+const toks = s => (s.toLowerCase().match(/[a-z0-9]+/g) || []).filter(w => !STOP.has(w)).map(w => w.length > 4 ? w.replace(/(ing|ed|es|s)$/, "") : w);
+const wc = s => (s.match(/\S+/g) || []).length;
+const COLORS = [210, 28, 150, 330, 262, 48];
+
+function sentences(text) {
+  return text.trim().split(/(?<=[.!?])\s+/).filter(Boolean);
+}
+function vectors(sents) {
+  const docs = sents.map(toks), df = {};
+  docs.forEach(d => new Set(d).forEach(w => df[w] = (df[w] || 0) + 1));
+  return docs.map(d => { const v = {}; d.forEach(w => v[w] = (v[w] || 0) + Math.log(1 + sents.length / df[w])); return v; });
+}
+function addv(vs) { const o = {}; vs.forEach(v => { for (const k in v) o[k] = (o[k] || 0) + v[k]; }); return o; }
+function cos(a, b) {
+  let d = 0, na = 0, nb = 0;
+  for (const k in a) { na += a[k] * a[k]; if (b[k]) d += a[k] * b[k]; }
+  for (const k in b) nb += b[k] * b[k];
+  return na && nb ? d / Math.sqrt(na * nb) : 0;
+}
+function gapSims(vecs) {
+  const out = [];
+  for (let i = 0; i < vecs.length - 1; i++)
+    out.push(cos(addv(vecs.slice(Math.max(0, i - 1), i + 1)), addv(vecs.slice(i + 1, i + 3))));
+  return out;
+}
+function semantic(sents, sims, th, min) {
+  const chunks = []; let cur = [], w = 0;
+  const total = sents.reduce((a, s) => a + wc(s), 0); let seen = 0;
+  sents.forEach((s, i) => {
+    cur.push(s); w += wc(s); seen += wc(s);
+    const dip = i < sims.length && sims[i] < th && sims[i] <= (sims[i - 1] ?? 9) && sims[i] <= (sims[i + 1] ?? 9);
+    if (dip && w >= min && total - seen >= min) { chunks.push(cur.join(" ")); cur = []; w = 0; }
+  });
+  if (cur.length) chunks.push(cur.join(" "));
+  return chunks;
+}
+function fixed(text, size) {
+  const words = text.match(/\S+/g) || [], out = [];
+  for (let i = 0; i < words.length; i += size) out.push(words.slice(i, i + size).join(" "));
+  return out;
+}
+function recursive(sents, size) {
+  const out = []; let cur = [], w = 0;
+  sents.forEach(s => {
+    if (w + wc(s) > size && cur.length) { out.push(cur.join(" ")); cur = []; w = 0; }
+    cur.push(s); w += wc(s);
+  });
+  if (cur.length) out.push(cur.join(" "));
+  return out;
+}
+function bm25(chunks, query) {
+  const docs = chunks.map(toks), q = toks(query), N = docs.length;
+  const avg = docs.reduce((a, d) => a + d.length, 0) / N || 1;
+  const scores = docs.map(d => q.reduce((sc, t) => {
+    const tf = d.filter(x => x === t).length; if (!tf) return sc;
+    const n = docs.filter(x => x.includes(t)).length;
+    const idf = Math.log(1 + (N - n + .5) / (n + .5));
+    return sc + idf * tf * 2.2 / (tf + 1.2 * (.25 + .75 * d.length / avg));
+  }, 0));
+  const best = scores.indexOf(Math.max(...scores));
+  return scores[best] > 0 ? best : -1;
+}
+
+let state = {};
+function renderChart(sims, th) {
+  const svg = $("chart"), W = Math.max(sims.length * 26 + 40, 320), H = 150, base = 120, scale = 100 / Math.max(0.5, ...sims);
+  let h = `<line x1="24" y1="${base}" x2="${W}" y2="${base}" stroke="var(--line)"/>`;
+  sims.forEach((s, i) => {
+    const bh = Math.max(2, s * scale), x = 30 + i * 26, cut = s < th;
+    h += `<rect x="${x}" y="${base - bh}" width="18" height="${bh}" rx="3" fill="${cut ? "#e5636b" : "var(--accent)"}" opacity="${cut ? 1 : .75}"><title>gap ${i + 1}: ${s.toFixed(2)}</title></rect><text x="${x + 9}" y="${base + 12}" text-anchor="middle">${i + 1}</text>`;
+  });
+  const ty = base - th * scale;
+  h += `<line x1="24" y1="${ty}" x2="${W}" y2="${ty}" stroke="#e5636b" stroke-dasharray="4 3"/><text x="${W - 4}" y="${ty - 4}" text-anchor="end">threshold</text>`;
+  svg.setAttribute("width", W); svg.innerHTML = h;
+}
+function colHtml(name, desc, chunks, hit) {
+  const avg = chunks.length ? Math.round(chunks.reduce((a, c) => a + wc(c), 0) / chunks.length) : 0;
+  return `<div class="col"><h3>${name}</h3><div class="stat">${desc} · ${chunks.length} chunks · avg ${avg} words</div>` +
+    chunks.map((c, i) => `<div class="chunk ${i === hit ? "hit" : ""}" style="background:hsl(${COLORS[i % 6]} 70% 50% / .15);border-color:hsl(${COLORS[i % 6]} 65% 50%)"><small>chunk ${i + 1} · ${wc(c)} words</small>${esc(c)}</div>`).join("") + `</div>`;
+}
+function update(runQuery) {
+  const text = $("txt").value, th = +$("th").value, mn = +$("mn").value, sz = +$("sz").value;
+  $("vTh").textContent = th.toFixed(2); $("vMin").textContent = mn; $("vSz").textContent = sz;
+  const sents = sentences(text);
+  if (sents.length < 2) { $("cols").innerHTML = "<p class='note'>Enter at least two sentences.</p>"; $("chart").innerHTML = ""; return; }
+  const sims = gapSims(vectors(sents));
+  renderChart(sims, th);
+  const set = [
+    ["Fixed-size", "cuts every N words, mid-sentence", fixed(text, sz)],
+    ["Recursive", "packs whole sentences to a size budget", recursive(sents, sz)],
+    ["Semantic (SemantiKB)", "cuts at topic shifts", semantic(sents, sims, th, mn)]
+  ];
+  const q = runQuery ? $("q").value : "";
+  $("cols").innerHTML = set.map(([n, d, c]) => colHtml(n, d, c, q ? bm25(c, q) : -1)).join("");
+}
+
+$("txt").value = SAMPLE;
+["txt", "th", "mn", "sz"].forEach(id => $(id).addEventListener("input", () => update(false)));
+$("go").onclick = () => update(true);
+$("q").addEventListener("keydown", e => { if (e.key === "Enter") update(true); });
+$("reset").onclick = () => { $("txt").value = SAMPLE; update(false); };
+if (GITHUB) $("gh").innerHTML = `<a href="${GITHUB}" target="_blank" rel="noopener">View source on GitHub</a>.`;
+update(false);
+</script>
+</body>
+</html>

@@ -1,1 +1,24 @@
+# secrets / env
 .env
+.venv/
+venv/
+
+# python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.coverage
+htmlcov/
+
+# runtime data (never commit user documents or databases)
+data/uploads/*
+data/chroma/*
+data/sqlite/*
+!data/uploads/.gitkeep
+!data/chroma/.gitkeep
+!data/sqlite/.gitkeep
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
