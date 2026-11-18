@@ -41,10 +41,10 @@ export class DocumentSidebar {
     statusEl.textContent = `Ingesting ${file.name}... (parsing, chunking, embedding, summarizing)`;
     try {
       const result = await api.uploadDocument(file);
-      statusEl.textContent = `✓ ${result.filename} indexed (${result.status})`;
+      statusEl.textContent = ` ${result.filename} indexed (${result.status})`;
       await this.refresh();
     } catch (err) {
-      statusEl.textContent = `✗ ${err.message}`;
+      statusEl.textContent = ` ${err.message}`;
     }
     e.target.value = "";
   }

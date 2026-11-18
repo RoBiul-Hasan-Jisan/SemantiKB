@@ -1,6 +1,6 @@
 <div align="center">
 
-# 🧩 SemantiKB
+# SemantiKB
 
 **A private, local-first RAG system with semantic chunking and a built-in evaluation harness.**
 
