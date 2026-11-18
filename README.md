@@ -1,20 +1,28 @@
-<div align="center">
 # SemantiKB
- 
-### Private, local-first question answering over your documents, powered by semantic chunking
- 
-[![CI](https://github.com/YOUR_USERNAME/SemantiKB/actions/workflows/ci.yml/badge.svg)](https://github.com/YOUR_USERNAME/SemantiKB/actions)
-![Python](https://img.shields.io/badge/python-3.10%2B-3776AB)
-![FastAPI](https://img.shields.io/badge/FastAPI-0.115-009688)
-![ChromaDB](https://img.shields.io/badge/ChromaDB-0.5-5b4fe0)
-![Ollama](https://img.shields.io/badge/LLM-Ollama-111111)
-![License](https://img.shields.io/badge/license-MIT-green)
- 
-[Live demo](https://YOUR_USERNAME.github.io/SemantiKB/) &nbsp;|&nbsp; [Overview](#overview) &nbsp;|&nbsp; [What we built](#what-we-built) &nbsp;|&nbsp; [What we learned](#what-we-learned) &nbsp;|&nbsp; [Quick start](#quick-start) &nbsp;|&nbsp; [API](#api-reference)
- 
+
+### Private, Local-First Question Answering Over Your Documents, Powered by Semantic Chunking
+
+<div align="center">
+
+![CI](https://github.com/RoBiul-Hasan-Jisan/SemantiKB/actions/workflows/ci.yml/badge.svg)
+![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB?logo=python&logoColor=white)
+![FastAPI](https://img.shields.io/badge/FastAPI-0.115-009688?logo=fastapi&logoColor=white)
+![ChromaDB](https://img.shields.io/badge/ChromaDB-0.5-5B4FE0)
+![Ollama](https://img.shields.io/badge/LLM-Ollama-111111?logo=ollama&logoColor=white)
+![License](https://img.shields.io/badge/License-MIT-green)
+
+**[Live Demo](https://robiul-hasan-jisan.github.io/SemantiKB/)** ·
+[Overview](#overview) ·
+[What We Built](#what-we-built) ·
+[What We Learned](#what-we-learned) ·
+[Quick Start](#quick-start) ·
+[API Reference](#api-reference)
+
 </div>
 
- 
+---
+
+
 ## Overview
  
 SemantiKB is a retrieval-augmented generation (RAG) system that lets you upload PDF or text documents and ask questions about them. Answers are generated **only from your documents** and come with citations to the document, version and page they were drawn from.
