@@ -1,5 +1,5 @@
 """
-FastAPI application: the HTTP surface for the Personal Knowledge Assistant.
+FastAPI application: the HTTP surface for SemantiKB.
 
 Run with:  uvicorn backend.main:app --reload --port 8000
 """
@@ -30,7 +30,7 @@ from backend.versioning.version_manager import VersionManager
 logging.basicConfig(level=settings.log_level)
 logger = logging.getLogger(__name__)
 
-app = FastAPI(title="Personal Knowledge Assistant", version="1.0.0")
+app = FastAPI(title="SemantiKB API", version="1.0.0")
 
 app.add_middleware(
     CORSMiddleware,
