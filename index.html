@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>SemantiKB — Semantic Chunking Demo</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%233b4fe0'/%3E%3Cpath d='M21 11.5c-1-1.6-2.8-2.5-5-2.5-2.8 0-4.6 1.4-4.6 3.5 0 4.6 9.6 2 9.6 7 0 2.2-2 3.5-4.9 3.5-2.4 0-4.4-1-5.5-2.8' fill='none' stroke='white' stroke-width='2.6' stroke-linecap='round'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
+<style>
+:root{--bg:#fafaf9;--surface:#fff;--ink:#0f172a;--dim:#5b6475;--line:#e6e8ee;--accent:#3b4fe0;--on-accent:#fff;--soft:#eef0ff;--danger:#d92d3f;--shadow:0 1px 2px rgba(15,23,42,.04),0 8px 24px rgba(15,23,42,.05);
+--r:14px;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);
+font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;color-scheme:light}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0b0d12;--surface:#12151c;--ink:#e8eaf0;--dim:#97a0b1;--line:#232836;--accent:#8b9bff;--on-accent:#0b0d12;--soft:#1a1f3a;--danger:#ff6b7a;--shadow:none;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#0b0d12;--surface:#12151c;--ink:#e8eaf0;--dim:#97a0b1;--line:#232836;--accent:#8b9bff;--on-accent:#0b0d12;--soft:#1a1f3a;--danger:#ff6b7a;--shadow:none;color-scheme:dark}
+html{scroll-padding-top:70px;scroll-behavior:smooth}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-size:15px;line-height:1.6;-webkit-font-smoothing:antialiased}
+a{color:var(--accent);text-decoration:none}
+.wrap{max-width:1120px;margin:0 auto;padding:0 20px}
+nav{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:color-mix(in srgb,var(--bg) 88%,transparent);backdrop-filter:blur(10px);border-bottom:1px solid var(--line)}
+nav .wrap{display:flex;align-items:center;justify-content:space-between;height:58px}
+.brand{display:flex;align-items:center;gap:10px;font-weight:700;letter-spacing:-.01em;color:var(--ink)}
+.mark{width:26px;height:26px;border-radius:7px;background:var(--accent);color:var(--on-accent);display:grid;place-items:center;font-size:14px;font-weight:700}
+nav .links{display:flex;gap:22px;font-size:14px}
+nav .links a{color:var(--dim);font-weight:500}
+nav .links a:hover{color:var(--ink)}
+.hero{padding:64px 0 36px}
+.eyebrow{font-size:12px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--accent)}
+h1{font-size:clamp(32px,5.4vw,52px);line-height:1.08;letter-spacing:-.03em;margin:12px 0 16px;max-width:760px;font-weight:700}
+.lead{font-size:18px;color:var(--dim);max-width:660px;margin:0 0 26px}
+.facts{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));border:1px solid var(--line);border-radius:var(--r);background:var(--surface);box-shadow:var(--shadow);overflow:hidden}
+.fact{padding:16px 18px;border-right:1px solid var(--line)}
+.fact:last-child{border-right:0}
+.fact b{display:block;font-size:15px}
+.fact span{font-size:13px;color:var(--dim)}
+section{padding:40px 0 8px}
+.sec-head{display:flex;align-items:baseline;gap:14px;margin-bottom:18px}
+.num{font:600 13px/1 Inter,sans-serif;color:var(--accent);background:var(--soft);padding:6px 9px;border-radius:8px}
+h2{font-size:22px;letter-spacing:-.02em;margin:0}
+.desc{color:var(--dim);margin:2px 0 0;font-size:14px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);box-shadow:var(--shadow);padding:20px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media (max-width:860px){.grid2{grid-template-columns:1fr}nav .links{display:none}.fact{border-right:0;border-bottom:1px solid var(--line)}.fact:last-child{border-bottom:0}}
+.lbl{font-size:12px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--dim);margin-bottom:8px;display:flex;justify-content:space-between;align-items:center}
+textarea,input[type=text]{width:100%;font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:12px 13px;outline:none;transition:border-color .15s,box-shadow .15s}
+textarea:focus,input[type=text]:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--soft)}
+textarea{min-height:220px;resize:vertical;font-size:14px;line-height:1.6}
+.sliders{display:grid;gap:14px;margin-top:16px}
+.sl label{display:flex;justify-content:space-between;font-size:13px;color:var(--dim);margin-bottom:4px}
+.sl b{color:var(--ink);font-variant-numeric:tabular-nums}
+input[type=range]{width:100%;accent-color:var(--accent);margin:0}
+button{font:inherit;font-weight:600;font-size:14px;border:0;border-radius:10px;padding:10px 18px;background:var(--accent);color:var(--on-accent);cursor:pointer;transition:transform .1s,opacity .15s}
+button:hover{opacity:.9}button:active{transform:scale(.98)}
+button.ghost{background:transparent;color:var(--dim);border:1px solid var(--line);padding:6px 12px;font-size:12px;font-weight:500}
+.chart{overflow-x:auto;padding-bottom:4px}
+svg text{fill:var(--dim);font-size:10.5px;font-family:Inter,sans-serif}
+.legend{display:flex;gap:16px;font-size:12px;color:var(--dim);margin-top:8px}
+.dot{display:inline-block;width:9px;height:9px;border-radius:3px;margin-right:6px;vertical-align:-1px}
+.note{font-size:13px;color:var(--dim);margin:12px 0 0}
+.cols{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;align-items:start}
+@media (max-width:980px){.cols{grid-template-columns:1fr}}
+.col{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:16px;box-shadow:var(--shadow)}
+.col.main{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent),var(--shadow)}
+.col-h{display:flex;justify-content:space-between;align-items:center;margin-bottom:2px}
+.col-h h3{font-size:16px;margin:0;letter-spacing:-.01em}
+.tag{font-size:11px;font-weight:600;background:var(--accent);color:var(--on-accent);padding:2px 8px;border-radius:99px}
+.meta{font-size:12.5px;color:var(--dim);margin-bottom:12px}
+.chunk{border-radius:10px;padding:10px 12px;margin-bottom:9px;font-size:13px;line-height:1.55;border:1px solid transparent;border-left:3px solid}
+.chunk small{display:block;color:var(--dim);font-size:11px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;margin-bottom:3px}
+.chunk.hit{border-color:var(--accent);box-shadow:0 0 0 2px var(--soft)}
+.chunk.hit small::after{content:"  ·  top result";color:var(--accent)}
+.row{display:flex;gap:10px}
+.steps{display:grid;grid-template-columns:repeat(4,1fr);gap:16px}
+@media (max-width:900px){.steps{grid-template-columns:1fr 1fr}}@media (max-width:520px){.steps{grid-template-columns:1fr}}
+.step{border-top:2px solid var(--line);padding-top:12px}
+.step:hover{border-top-color:var(--accent)}
+.step i{font:600 12px Inter,sans-serif;color:var(--accent);font-style:normal}
+.step b{display:block;margin:4px 0 2px}
+.step span{font-size:13px;color:var(--dim)}
+.stack{display:flex;flex-wrap:wrap;gap:8px;margin-top:18px}
+.stack span{font-size:12.5px;font-weight:500;padding:5px 11px;border:1px solid var(--line);border-radius:99px;background:var(--surface);color:var(--dim)}
+footer{margin-top:56px;border-top:1px solid var(--line);padding:24px 0 36px;color:var(--dim);font-size:13px}
+</style>
+</head>
+<body>
+<nav><div class="wrap">
+  <a class="brand" href="#top"><span class="mark">S</span>SemantiKB</a>
+  <div class="links"><a href="#demo">Demo</a><a href="#compare">Compare</a><a href="#how">How it works</a><span id="gh"></span></div>
+</div></nav>
+
+<main class="wrap" id="top">
+  <header class="hero">
+    <div class="eyebrow">Local-first retrieval-augmented generation</div>
+    <h1>Chunk documents by meaning, not by length.</h1>
+    <p class="lead">SemantiKB splits documents where the topic actually changes, so every retrieved passage is a complete idea. It runs entirely on your machine and ships with a harness to measure the difference.</p>
+    <div class="facts">
+      <div class="fact"><b>Semantic chunking</b><span>Boundaries from sentence similarity</span></div>
+      <div class="fact"><b>Hybrid retrieval</b><span>BM25 and vector search, reranked</span></div>
+      <div class="fact"><b>Measured quality</b><span>Precision, Recall, MRR and NDCG</span></div>
+      <div class="fact"><b>Fully private</b><span>No paid APIs, no data leaves the device</span></div>
+    </div>
+  </header>
+
+  <section id="demo">
+    <div class="sec-head"><span class="num">01</span><div><h2>Try it on your own text</h2><p class="desc">Edit the document and tune the parameters. Everything below updates live.</p></div></div>
+    <div class="grid2">
+      <div class="card">
+        <div class="lbl">Document <button class="ghost" id="reset">Reset sample</button></div>
+        <textarea id="txt" spellcheck="false"></textarea>
+        <div class="sliders">
+          <div class="sl"><label>Similarity threshold <b id="vTh"></b></label><input id="th" type="range" min="0.02" max="0.5" step="0.01" value="0.14"></div>
+          <div class="sl"><label>Minimum chunk size <b id="vMin"></b></label><input id="mn" type="range" min="5" max="60" step="1" value="20"></div>
+          <div class="sl"><label>Baseline chunk size <b id="vSz"></b></label><input id="sz" type="range" min="15" max="80" step="1" value="35"></div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="lbl">Similarity between consecutive sentences</div>
+        <div class="chart"><svg id="chart" height="190"></svg></div>
+        <div class="legend"><span><i class="dot" style="background:var(--danger)"></i>Topic boundary</span><span><i class="dot" style="background:var(--accent);opacity:.6"></i>Same topic</span></div>
+        <p class="note">Bars under the dashed line are candidate boundaries. This page scores sentences with TF‑IDF so it runs without a backend; the full application uses Sentence‑Transformer embeddings (all‑MiniLM‑L6‑v2).</p>
+      </div>
+    </div>
+  </section>
+
+  <section id="compare">
+    <div class="sec-head"><span class="num">02</span><div><h2>Three strategies, same document</h2><p class="desc">Fixed-size ignores meaning, recursive respects sentences, semantic follows topics.</p></div></div>
+    <div class="cols" id="cols"></div>
+  </section>
+
+  <section id="ask">
+    <div class="sec-head"><span class="num">03</span><div><h2>Ask a question</h2><p class="desc">Each strategy retrieves its best chunk with BM25. Compare how complete the answer is.</p></div></div>
+    <div class="card"><div class="row"><input type="text" id="q" value="Can gift cards be refunded?"><button id="go">Retrieve</button></div>
+    <p class="note" id="qnote">Run a query to highlight the top result in each column above.</p></div>
+  </section>
+
+  <section id="how">
+    <div class="sec-head"><span class="num">04</span><div><h2>How the pipeline works</h2><p class="desc">From upload to a grounded, cited answer.</p></div></div>
+    <div class="steps">
+      <div class="step"><i>STEP 1</i><b>Ingest</b><span>Parse PDF or text, segment into sentences, keep page and section metadata.</span></div>
+      <div class="step"><i>STEP 2</i><b>Chunk by topic</b><span>Embed sentences, find similarity drops, cut with size guards and overlap.</span></div>
+      <div class="step"><i>STEP 3</i><b>Retrieve</b><span>Fuse vector and BM25 scores, optionally rerank with a cross-encoder.</span></div>
+      <div class="step"><i>STEP 4</i><b>Answer</b><span>A local LLM answers from the retrieved chunks and cites its sources.</span></div>
+    </div>
+    <div class="stack"><span>FastAPI</span><span>ChromaDB</span><span>Sentence Transformers</span><span>Ollama</span><span>SQLite</span><span>Pydantic</span></div>
+  </section>
+</main>
+
+<footer><div class="wrap">SemantiKB — an in-browser illustration of the chunking and retrieval ideas. The full system runs locally.</div></footer>
+
+<script>
+const GITHUB = ""; // set to the repository URL to show a source link
+const SAMPLE = "Our refund policy allows customers to return any item within 30 days of purchase. Refunds are issued to the original payment method once the returned item is inspected. Items returned after 30 days are not eligible for a refund, but store credit may be offered. Digital goods and gift cards cannot be refunded under this policy.\n\nWe take data privacy seriously and collect only the personal data needed to process orders. Personal data is encrypted in transit and at rest on our servers. Customers may request deletion of their personal data at any time through the privacy portal. We never sell personal data to advertising partners.\n\nShipping times depend on the delivery region and the carrier selected at checkout. Standard shipping usually takes five business days, while express shipping arrives within two days. Each shipping carrier provides a tracking number once the parcel leaves the warehouse. International shipping may incur customs fees paid by the recipient.";
+const STOP = new Set("a an the and or but of to in on at by for with from is are was were be been it its this that these those as can may we our us they their any each once not no than then so such into under over".split(" "));
+const $ = id => document.getElementById(id);
+const esc = s => s.replace(/[&<>]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]));
+const toks = s => (s.toLowerCase().match(/[a-z0-9]+/g) || []).filter(w => !STOP.has(w)).map(w => w.length > 4 ? w.replace(/(ing|ed|es|s)$/, "") : w);
+const wc = s => (s.match(/\S+/g) || []).length;
+const COLORS = [226, 28, 160, 330, 262, 48];
+
+const sentences = t => t.trim().split(/(?<=[.!?])\s+/).filter(Boolean);
+function vectors(sents) {
+  const docs = sents.map(toks), df = {};
+  docs.forEach(d => new Set(d).forEach(w => df[w] = (df[w] || 0) + 1));
+  return docs.map(d => { const v = {}; d.forEach(w => v[w] = (v[w] || 0) + Math.log(1 + sents.length / df[w])); return v; });
+}
+const addv = vs => { const o = {}; vs.forEach(v => { for (const k in v) o[k] = (o[k] || 0) + v[k]; }); return o; };
+function cos(a, b) {
+  let d = 0, na = 0, nb = 0;
+  for (const k in a) { na += a[k] * a[k]; if (b[k]) d += a[k] * b[k]; }
+  for (const k in b) nb += b[k] * b[k];
+  return na && nb ? d / Math.sqrt(na * nb) : 0;
+}
+function gapSims(vecs) {
+  const out = [];
+  for (let i = 0; i < vecs.length - 1; i++)
+    out.push(cos(addv(vecs.slice(Math.max(0, i - 1), i + 1)), addv(vecs.slice(i + 1, i + 3))));
+  return out;
+}
+function semantic(sents, sims, th, min) {
+  const chunks = []; let cur = [], w = 0, seen = 0;
+  const total = sents.reduce((a, s) => a + wc(s), 0);
+  sents.forEach((s, i) => {
+    cur.push(s); w += wc(s); seen += wc(s);
+    const dip = i < sims.length && sims[i] < th && sims[i] <= (sims[i - 1] ?? 9) && sims[i] <= (sims[i + 1] ?? 9);
+    if (dip && w >= min && total - seen >= min) { chunks.push(cur.join(" ")); cur = []; w = 0; }
+  });
+  if (cur.length) chunks.push(cur.join(" "));
+  return chunks;
+}
+function fixed(text, size) {
+  const words = text.match(/\S+/g) || [], out = [];
+  for (let i = 0; i < words.length; i += size) out.push(words.slice(i, i + size).join(" "));
+  return out;
+}
+function recursive(sents, size) {
+  const out = []; let cur = [], w = 0;
+  sents.forEach(s => {
+    if (w + wc(s) > size && cur.length) { out.push(cur.join(" ")); cur = []; w = 0; }
+    cur.push(s); w += wc(s);
+  });
+  if (cur.length) out.push(cur.join(" "));
+  return out;
+}
+function bm25(chunks, query) {
+  const docs = chunks.map(toks), q = toks(query), N = docs.length;
+  const avg = docs.reduce((a, d) => a + d.length, 0) / N || 1;
+  const scores = docs.map(d => q.reduce((sc, t) => {
+    const tf = d.filter(x => x === t).length; if (!tf) return sc;
+    const n = docs.filter(x => x.includes(t)).length;
+    return sc + Math.log(1 + (N - n + .5) / (n + .5)) * tf * 2.2 / (tf + 1.2 * (.25 + .75 * d.length / avg));
+  }, 0));
+  const best = scores.indexOf(Math.max(...scores));
+  return scores[best] > 0 ? best : -1;
+}
+
+function renderChart(sims, th) {
+  const W = Math.max(sims.length * 30 + 50, 300), base = 150, scale = 120 / Math.max(.5, ...sims);
+  let h = `<line x1="30" y1="${base}" x2="${W}" y2="${base}" stroke="var(--line)"/>`;
+  sims.forEach((s, i) => {
+    const bh = Math.max(3, s * scale), x = 38 + i * 30, cut = s < th;
+    h += `<rect x="${x}" y="${base - bh}" width="20" height="${bh}" rx="4" fill="${cut ? "var(--danger)" : "var(--accent)"}" opacity="${cut ? 1 : .6}"><title>Gap ${i + 1}: ${s.toFixed(2)}</title></rect><text x="${x + 10}" y="${base + 15}" text-anchor="middle">${i + 1}</text>`;
+  });
+  const ty = base - th * scale;
+  h += `<line x1="30" y1="${ty}" x2="${W}" y2="${ty}" stroke="var(--danger)" stroke-dasharray="5 4"/><text x="${W - 2}" y="${ty - 5}" text-anchor="end">threshold ${th.toFixed(2)}</text><text x="${W / 2}" y="184" text-anchor="middle">sentence gap</text>`;
+  $("chart").setAttribute("width", W); $("chart").innerHTML = h;
+}
+function colHtml(name, desc, chunks, hit, main) {
+  const avg = chunks.length ? Math.round(chunks.reduce((a, c) => a + wc(c), 0) / chunks.length) : 0;
+  return `<div class="col ${main ? "main" : ""}"><div class="col-h"><h3>${name}</h3>${main ? '<span class="tag">SemantiKB</span>' : ""}</div><div class="meta">${desc} · ${chunks.length} chunks · avg ${avg} words</div>` +
+    chunks.map((c, i) => `<div class="chunk ${i === hit ? "hit" : ""}" style="background:hsl(${COLORS[i % 6]} 70% 50% / .1);border-left-color:hsl(${COLORS[i % 6]} 65% 55%)"><small>Chunk ${i + 1} · ${wc(c)} words</small>${esc(c)}</div>`).join("") + `</div>`;
+}
+function update(runQuery) {
+  const text = $("txt").value, th = +$("th").value, mn = +$("mn").value, sz = +$("sz").value;
+  $("vTh").textContent = th.toFixed(2); $("vMin").textContent = mn + " words"; $("vSz").textContent = sz + " words";
+  const sents = sentences(text);
+  if (sents.length < 2) { $("cols").innerHTML = "<p class='note'>Enter at least two sentences.</p>"; $("chart").innerHTML = ""; return; }
+  const sims = gapSims(vectors(sents));
+  renderChart(sims, th);
+  const set = [
+    ["Fixed-size", "Cuts every N words", fixed(text, sz)],
+    ["Recursive", "Packs whole sentences", recursive(sents, sz)],
+    ["Semantic", "Cuts at topic shifts", semantic(sents, sims, th, mn)]
+  ];
+  const q = runQuery ? $("q").value : "";
+  $("cols").innerHTML = set.map(([n, d, c], i) => colHtml(n, d, c, q ? bm25(c, q) : -1, i === 2)).join("");
+  if (runQuery) { $("qnote").textContent = "Top result highlighted in each column."; document.getElementById("compare").scrollIntoView({behavior: "smooth"}); }
+}
+
+$("txt").value = SAMPLE;
+["txt", "th", "mn", "sz"].forEach(id => $(id).addEventListener("input", () => update(false)));
+$("go").onclick = () => update(true);
+$("q").addEventListener("keydown", e => { if (e.key === "Enter") update(true); });
+$("reset").onclick = () => { $("txt").value = SAMPLE; update(false); };
+if (GITHUB) $("gh").innerHTML = `<a href="${GITHUB}" target="_blank" rel="noopener" style="color:var(--dim);font-weight:500">GitHub</a>`;
+update(false);
+</script>
+</body>
+</html>
